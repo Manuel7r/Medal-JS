@@ -14,10 +14,21 @@ export default function EquityChart({ data }: Props) {
     );
   }
 
-  const formatted = data.map(d => ({
-    ...d,
-    time: new Date(d.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-  }));
+  const formatted = data.map((d, i) => {
+    const ts = new Date(d.timestamp);
+    // Use index as unique label; format time only if timestamp differs across points
+    return {
+      ...d,
+      idx: i,
+      label: `Bar ${i}`,
+      time: ts.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' +
+            ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+  });
+
+  // Check if all timestamps are the same (backtest data vs live data)
+  const uniqueTimes = new Set(data.map(d => d.timestamp));
+  const useBarIndex = uniqueTimes.size < data.length * 0.1; // <10% unique = use index
 
   return (
     <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
@@ -30,11 +41,21 @@ export default function EquityChart({ data }: Props) {
               <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <XAxis dataKey="time" tick={{ fill: '#94a3b8', fontSize: 12 }} />
+          <XAxis
+            dataKey={useBarIndex ? 'idx' : 'time'}
+            tick={{ fill: '#94a3b8', fontSize: 11 }}
+            interval={Math.max(Math.floor(formatted.length / 10) - 1, 0)}
+            tickFormatter={useBarIndex ? (v: number) => `${v}` : undefined}
+          />
           <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} domain={['auto', 'auto']} />
           <Tooltip
             contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }}
             labelStyle={{ color: '#94a3b8' }}
+            formatter={(value: number) => [`$${value.toFixed(2)}`, 'Equity']}
+            labelFormatter={(_, payload) => {
+              if (payload?.[0]?.payload?.time) return payload[0].payload.time;
+              return '';
+            }}
           />
           <Area type="monotone" dataKey="equity" stroke="#10b981" fill="url(#eqGrad)" />
         </AreaChart>
