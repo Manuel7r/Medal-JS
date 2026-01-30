@@ -1,0 +1,54 @@
+# Risk parameters for crypto trading
+risk:
+  max_drawdown: 0.20          # 20%
+  daily_loss_limit: 0.03      # 3%
+  max_position_pct: 0.03      # 3% per position
+  max_leverage: 3.0
+  max_positions: 20
+  max_correlation: 0.70
+
+# Kelly Criterion
+kelly:
+  fraction: 0.25              # Use 25% of optimal Kelly
+  max_position: 0.03          # Hard cap at 3%
+
+# ATR-based stops (crypto)
+stops:
+  atr_period: 14
+  stop_loss_mult: 2.5         # 2.5x ATR
+  take_profit_mult: 4.0       # 4.0x ATR
+  trailing_activation: 2.0    # Activate after 2x initial risk
+  trailing_atr_mult: 1.0      # Trailing distance = 1x ATR
+
+# Strategy parameters
+strategies:
+  pairs_trading:
+    lookback: 168             # hours (7 days)
+    entry_zscore: 2.0
+    exit_zscore: 0.5
+    stop_zscore: 3.5
+    max_hold_hours: 168
+    cointegration_pvalue: 0.05
+
+  mean_reversion:
+    lookback: 20
+    entry_std: 2.0
+    exit_std: 0.5
+
+  ml_ensemble:
+    weights:
+      xgboost: 0.4
+      random_forest: 0.3
+      lightgbm: 0.3
+    threshold_buy: 0.55
+    threshold_sell: 0.45
+
+# Commissions (Binance)
+commissions:
+  maker: 0.001                # 0.1%
+  taker: 0.001                # 0.1%
+  bnb_discount: 0.075         # 0.075% with BNB
+
+# Slippage model
+slippage:
+  default: 0.001              # 0.1%

@@ -1,0 +1,44 @@
+# General settings
+app:
+  name: "Medal Trading System"
+  log_level: "INFO"
+
+# Binance connection
+exchange:
+  name: "binance"
+  testnet: false
+  rate_limit: true
+  timeout: 30000  # ms
+
+# Default symbols to track
+symbols:
+  - "BTC/USDT"
+  - "ETH/USDT"
+  - "BNB/USDT"
+  - "SOL/USDT"
+  - "LINK/USDT"
+  - "DOT/USDT"
+  - "AVAX/USDT"
+  - "NEAR/USDT"
+
+# Trading pairs for pairs trading
+pairs:
+  - ["BTC/USDT", "ETH/USDT"]
+  - ["BNB/USDT", "SOL/USDT"]
+  - ["LINK/USDT", "DOT/USDT"]
+
+# Data settings
+data:
+  timeframe: "1h"
+  lookback_days: 120
+  history_limit: 1000
+
+# Database
+database:
+  pool_size: 5
+  max_overflow: 10
+
+# Redis cache
+cache:
+  ttl: 300  # seconds
+  prefix: "medal"

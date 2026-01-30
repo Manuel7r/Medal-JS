@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: medal-app
+  namespace: medal-trading
+  labels:
+    app: medal
+    component: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: medal
+      component: api
+  template:
+    metadata:
+      labels:
+        app: medal
+        component: api
+    spec:
+      containers:
+        - name: medal-api
+          image: medal-trading:latest
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: medal-secrets
+            - configMapRef:
+                name: medal-config
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: medal-api
+  namespace: medal-trading
+spec:
+  selector:
+    app: medal
+    component: api
+  ports:
+    - port: 8000
+      targetPort: 8000
+  type: ClusterIP
