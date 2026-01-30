@@ -65,7 +65,7 @@ async def broadcast(event_type: str, data: dict) -> None:
         except Exception:
             disconnected.add(ws)
 
-    _clients -= disconnected
+    _clients.difference_update(disconnected)
 
 
 def _serialize(obj: object) -> dict:
