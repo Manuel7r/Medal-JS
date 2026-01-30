@@ -308,6 +308,81 @@ def get_diagnostics():
     }
 
 
+@router.get("/predictions/live")
+def get_live_predictions():
+    """Current pending predictions per symbol/strategy."""
+    state = _get_app_state()
+    engine = state.get("prediction_engine")
+    if engine is None:
+        return {}
+    return engine.get_live_predictions()
+
+
+@router.get("/predictions/accuracy")
+def get_predictions_accuracy():
+    """Rolling accuracy metrics per strategy."""
+    state = _get_app_state()
+    engine = state.get("prediction_engine")
+    if engine is None:
+        return {"overall": {}, "per_strategy": {}, "ranking": []}
+    return engine.get_accuracy_summary()
+
+
+@router.get("/predictions/history")
+def get_predictions_history(
+    symbol: str | None = None,
+    strategy: str | None = None,
+    limit: int = 100,
+):
+    """Prediction history with outcomes."""
+    state = _get_app_state()
+    tracker = state.get("prediction_tracker")
+    if tracker is None:
+        return []
+    preds = tracker.get_history(symbol=symbol, strategy=strategy, limit=limit)
+    return [p.to_dict() for p in preds]
+
+
+@router.get("/backtest/continuous")
+def get_continuous_backtest():
+    """Latest continuous backtest results."""
+    state = _get_app_state()
+    cb = state.get("continuous_backtester")
+    if cb is None:
+        return []
+    return cb.get_latest_results()
+
+
+@router.get("/backtest/degradation")
+def get_degradation_alerts():
+    """Strategy health/degradation alerts."""
+    state = _get_app_state()
+    cb = state.get("continuous_backtester")
+    if cb is None:
+        return []
+    return cb.get_degradation_alerts()
+
+
+@router.get("/backtest/streaming/status")
+def get_streaming_status():
+    """Current state of the streaming backtest."""
+    state = _get_app_state()
+    manager = state.get("streaming_manager")
+    if manager is None:
+        return {"active": False, "current_strategy": "", "current_symbol": "", "progress_pct": 0}
+    return manager.get_status()
+
+
+@router.get("/backtest/streaming/results")
+def get_streaming_results():
+    """Results from the last completed streaming cycle."""
+    state = _get_app_state()
+    manager = state.get("streaming_manager")
+    if manager is None:
+        return []
+    return manager.get_all_results()
+
+
 def _metrics_to_dict(metrics) -> dict:
     return {
         "total_return": metrics.total_return,

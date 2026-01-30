@@ -93,6 +93,7 @@ class MLEnsembleStrategy(BaseStrategy):
         self._is_trained = False
         self._last_train_bar = -1
         self._last_features: list[str] = []
+        self._last_probability: float | None = None
 
     def get_params(self) -> StrategyParams:
         return self.params
@@ -262,6 +263,7 @@ class MLEnsembleStrategy(BaseStrategy):
             self.train(data, index)
 
         prob = self.predict_proba(data, index)
+        self._last_probability = prob
         if prob is None:
             return Signal.HOLD
 
@@ -270,6 +272,10 @@ class MLEnsembleStrategy(BaseStrategy):
         if prob < p.threshold_sell:
             return Signal.SELL
         return Signal.HOLD
+
+    def get_confidence(self) -> float:
+        """Return the last prediction probability as confidence."""
+        return self._last_probability if self._last_probability is not None else 0.5
 
     def generate_engine_signal(self, data: pd.DataFrame, index: int) -> SignalType:
         """Adapter for BacktestEngine."""

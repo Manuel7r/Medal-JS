@@ -109,6 +109,99 @@ export interface WalkForwardResult {
   windows: WalkForwardWindow[];
 }
 
+export interface PredictionRecord {
+  prediction_id: string;
+  symbol: string;
+  strategy: string;
+  direction: 'UP' | 'DOWN';
+  confidence: number;
+  price_at_prediction: number;
+  timestamp: string;
+  actual_direction: 'UP' | 'DOWN' | null;
+  actual_price: number | null;
+  resolved_at: string | null;
+  correct: boolean | null;
+}
+
+export interface AccuracyMetrics {
+  total_predictions: number;
+  correct_predictions: number;
+  hit_rate: number;
+  avg_confidence_when_correct: number;
+  avg_confidence_when_wrong: number;
+  calibration_error: number;
+  recent_hit_rate: number;
+}
+
+export interface AccuracySummary {
+  overall: AccuracyMetrics;
+  per_strategy: Record<string, AccuracyMetrics>;
+  ranking: { strategy: string; hit_rate: number; total_predictions: number; recent_hit_rate: number }[];
+  total_pending: number;
+  total_resolved: number;
+}
+
+export interface ContinuousBacktestResult {
+  strategy: string;
+  symbol: string;
+  sharpe_ratio: number;
+  total_return: number;
+  max_drawdown: number;
+  win_rate: number;
+  total_trades: number;
+  degraded: boolean;
+  alerts: DegradationAlert[];
+}
+
+export interface DegradationAlert {
+  strategy: string;
+  symbol: string;
+  metric: string;
+  historical_value: number;
+  current_value: number;
+  threshold: number;
+  timestamp: string;
+}
+
+export interface LiveBacktestProgress {
+  strategy: string;
+  symbol: string;
+  bar_index: number;
+  total_bars: number;
+  progress_pct: number;
+  equity: number;
+  total_trades: number;
+  equity_curve: number[];
+}
+
+export interface LiveBacktestTrade {
+  strategy: string;
+  symbol: string;
+  trade: {
+    side: string;
+    entry_price: number;
+    exit_price: number;
+    pnl: number;
+    return_pct: number;
+  };
+  total_trades: number;
+}
+
+export interface LiveBacktestComplete {
+  strategy: string;
+  symbol: string;
+  metrics: {
+    sharpe_ratio: number;
+    total_return: number;
+    max_drawdown: number;
+    win_rate: number;
+    total_trades: number;
+    profit_factor: number;
+  };
+  final_equity: number;
+  total_trades: number;
+}
+
 export interface BacktestMetrics {
   total_return: number;
   annualized_return: number;

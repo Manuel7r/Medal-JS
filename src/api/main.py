@@ -38,6 +38,10 @@ from src.backtester.engine import BacktestEngine
 from src.backtester.walk_forward import WalkForwardValidator
 from src.monitoring.audit import AuditTrail, AuditEventType
 from src.risk.advanced_metrics import AdvancedRiskMetrics
+from src.prediction.tracker import PredictionTracker
+from src.prediction.engine import PredictionEngine
+from src.backtester.continuous import ContinuousBacktester
+from src.backtester.stream_manager import StreamingBacktestManager
 
 # Shared state accessible by routes
 app_state: dict = {}
@@ -492,6 +496,26 @@ def startup_sequence(
     scheduler.add_job("data_update", data_job, hours=1, start_now=False)
     scheduler.add_job("risk_check", risk_job, minutes=15, start_now=True)
 
+    # 4b. Set baselines for continuous backtester and add prediction jobs
+    cb = app_state.get("continuous_backtester")
+    if cb and backtest_results:
+        for r in backtest_results:
+            cb.set_baseline(r["strategy"], r["symbol"], r["result"].metrics)
+
+    pred_engine = app_state.get("prediction_engine")
+
+    def prediction_cycle():
+        if pred_engine:
+            pred_engine.run_cycle()
+
+    def continuous_backtest_cycle():
+        ohlcv = app_state.get("ohlcv_data", {})
+        if cb and ohlcv:
+            cb.run_cycle(ohlcv)
+
+    scheduler.add_job("prediction_cycle", prediction_cycle, minutes=15, start_now=False)
+    scheduler.add_job("continuous_backtest", continuous_backtest_cycle, hours=4, start_now=False)
+
     scheduler.start()
     logger.info("=== Startup sequence complete ===")
 
@@ -559,6 +583,39 @@ async def lifespan(app: FastAPI):
     app_state["config"] = config
     app_state["audit"] = audit
 
+    # Prediction system
+    prediction_tracker = PredictionTracker(max_history=5000)
+    prediction_strategies = {
+        "mean_reversion": MeanReversionStrategy(),
+        "ml_ensemble": MLEnsembleStrategy(),
+    }
+    prediction_engine = PredictionEngine(
+        source=source,
+        strategies=prediction_strategies,
+        tracker=prediction_tracker,
+        symbols=config["symbols"][:4],
+        timeframe=config["data"]["timeframe"],
+    )
+    continuous_backtester = ContinuousBacktester(
+        strategies={"mean_reversion": MeanReversionStrategy()},
+        symbols=config["symbols"][:4],
+    )
+    app_state["prediction_tracker"] = prediction_tracker
+    app_state["prediction_engine"] = prediction_engine
+    app_state["continuous_backtester"] = continuous_backtester
+
+    # Streaming backtest manager (runs continuously via WebSocket)
+    from src.api.websocket import broadcast as ws_broadcast
+    streaming_manager = StreamingBacktestManager(
+        strategies={"mean_reversion": MeanReversionStrategy()},
+        symbols=config["symbols"][:4],
+        source=source,
+        broadcast_fn=ws_broadcast,
+        cycle_delay_minutes=30,
+        initial_capital=10_000.0,
+    )
+    app_state["streaming_manager"] = streaming_manager
+
     # Run startup in background thread (backtests + scheduler)
     thread = threading.Thread(
         target=startup_sequence,
@@ -567,10 +624,14 @@ async def lifespan(app: FastAPI):
     )
     thread.start()
 
+    # Start streaming backtest loop (async background task)
+    await streaming_manager.start()
+
     logger.info("=== API Ready (startup running in background) ===")
     yield
 
     # Shutdown
+    await streaming_manager.stop()
     scheduler.stop()
     logger.info("=== API Shutdown ===")
 

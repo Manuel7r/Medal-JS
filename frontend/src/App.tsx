@@ -13,6 +13,10 @@ import WalkForwardPanel from './components/WalkForwardPanel';
 import AdvancedRiskPanel from './components/AdvancedRiskPanel';
 import DiagnosticsPanel from './components/DiagnosticsPanel';
 import AuditPanel from './components/AuditPanel';
+import PredictionPanel from './components/PredictionPanel';
+import AccuracyChart from './components/AccuracyChart';
+import StrategyHealthPanel from './components/StrategyHealthPanel';
+import LiveBacktestPanel from './components/LiveBacktestPanel';
 
 export default function App() {
   const { data, loading } = useDashboard();
@@ -69,6 +73,17 @@ export default function App() {
         </div>
       </div>
 
+      {/* Predictions */}
+      <div ref={setRef('predictions')}>
+        <PredictionPanel />
+        <div className="mt-6">
+          <AccuracyChart />
+        </div>
+        <div className="mt-6">
+          <StrategyHealthPanel />
+        </div>
+      </div>
+
       {/* Portfolio */}
       <div ref={setRef('portfolio')}>
         <PortfolioPanel portfolio={data.portfolio} risk={data.risk} />
@@ -76,7 +91,10 @@ export default function App() {
 
       {/* Backtests */}
       <div ref={setRef('backtest')}>
-        <BacktestPanel />
+        <LiveBacktestPanel />
+        <div className="mt-6">
+          <BacktestPanel />
+        </div>
         <div className="mt-6">
           <WalkForwardPanel data={walkForward} />
         </div>

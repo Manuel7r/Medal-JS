@@ -9,6 +9,7 @@ interface Props {
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard' },
+  { id: 'predictions', label: 'Predictions' },
   { id: 'portfolio', label: 'Portfolio' },
   { id: 'backtest', label: 'Backtests' },
   { id: 'orders', label: 'Orders' },
