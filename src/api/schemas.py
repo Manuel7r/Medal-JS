@@ -59,6 +59,7 @@ class JobOut(BaseModel):
     run_count: int
     error_count: int
     last_error: str | None
+    next_run: str | None = None
 
 
 class SchedulerOut(BaseModel):

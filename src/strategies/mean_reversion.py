@@ -6,7 +6,7 @@ filter to avoid trading in strong trends.
 
 Crypto parameters (1h timeframe):
     - lookback: 72 periods (3 days)
-    - entry_std: 2.5
+    - entry_std: 3.0
     - exit_std: 0.2
     - max_hold: 72 bars (3 days)
     - vol_lookback: 100
@@ -29,7 +29,7 @@ class MeanReversionParams(StrategyParams):
 
     name: str = "MeanReversion"
     lookback: int = 72            # rolling window for mean/std (3 days at 1h)
-    entry_std: float = 2.5        # entry z-score threshold (higher = fewer but better trades)
+    entry_std: float = 3.0        # entry z-score threshold (higher = fewer but better trades)
     exit_std: float = 0.2         # exit z-score threshold (closer to mean = fuller reversion)
     max_hold: int = 72            # max bars to hold (3 days)
     vol_lookback: int = 100       # volatility regime lookback

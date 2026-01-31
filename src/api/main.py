@@ -33,7 +33,9 @@ from src.strategies.pairs_trading import (
 )
 from src.strategies.mean_reversion import backtest_mean_reversion
 from src.strategies.ml_ensemble import MLEnsembleStrategy, MLEnsembleParams, backtest_ml_ensemble
+from src.strategies.momentum import MomentumStrategy, MomentumParams, backtest_momentum
 from src.strategies.aggregator import SignalAggregator, AggregatorParams, backtest_aggregated
+from src.strategies.regime_filter import compute_hurst, classify_regime, get_strategy_weights
 from src.backtester.engine import BacktestEngine
 from src.backtester.walk_forward import WalkForwardValidator
 from src.monitoring.audit import AuditTrail, AuditEventType
@@ -105,6 +107,33 @@ def run_backtests(ohlcv_data: dict, config: dict) -> list[dict]:
             )
         except Exception as e:
             logger.error("MR Backtest {} failed: {}", symbol, e)
+
+    # 1b. Momentum backtests on individual symbols
+    for symbol in ["BTC/USDT", "ETH/USDT", "SOL/USDT"]:
+        if symbol not in ohlcv_data or len(ohlcv_data[symbol]) < 120:
+            continue
+        try:
+            df = ohlcv_data[symbol].copy()
+            df = technical.compute_all(df)
+            result = backtest_momentum(
+                data=df,
+                initial_capital=initial_capital,
+                commission_rate=0.001,
+                slippage_rate=0.001,
+                position_size_pct=0.03,
+            )
+            results.append({
+                "strategy": "Momentum",
+                "symbol": symbol,
+                "result": result,
+            })
+            logger.info(
+                "Momentum Backtest {}: Sharpe={:.2f}, Return={:.2%}, Trades={}",
+                symbol, result.metrics.sharpe_ratio,
+                result.metrics.total_return, result.metrics.total_trades,
+            )
+        except Exception as e:
+            logger.error("Momentum Backtest {} failed: {}", symbol, e)
 
     # 2. Pairs Trading backtests
     pairs = config.get("pairs", [])
@@ -319,19 +348,31 @@ def create_strategy_job(
                 df = technical.compute_all(df)
                 df = statistical.compute_all(df)
 
-                # Use Aggregator if enough data for ML, otherwise MeanReversion only
+                # Regime-aware strategy selection using Hurst exponent
+                hurst = compute_hurst(df["close"])
+                regime = classify_regime(hurst)
+                weights = get_strategy_weights(hurst)
+
                 mr_strategy = MeanReversionStrategy()
+                mom_strategy = MomentumStrategy()
                 prepared = mr_strategy.prepare(df)
+                prepared = mom_strategy.prepare(prepared)
 
                 if len(df) >= 2500:
                     ml_strategy = MLEnsembleStrategy()
                     prepared = ml_strategy.prepare(prepared)
                     aggregator = SignalAggregator()
-                    aggregator.register("mean_reversion", mr_strategy, 0.5)
-                    aggregator.register("ml_ensemble", ml_strategy, 0.5)
+                    aggregator.register("mean_reversion", mr_strategy, weights.get("mean_reversion", 0.3))
+                    aggregator.register("momentum", mom_strategy, weights.get("momentum", 0.3))
+                    aggregator.register("ml_ensemble", ml_strategy, weights.get("ml_ensemble", 0.3))
                     signal = aggregator.aggregate(prepared, len(prepared) - 1)
                 else:
-                    signal = mr_strategy.generate_signal(prepared, len(prepared) - 1)
+                    aggregator = SignalAggregator()
+                    aggregator.register("mean_reversion", mr_strategy, weights.get("mean_reversion", 0.5))
+                    aggregator.register("momentum", mom_strategy, weights.get("momentum", 0.5))
+                    signal = aggregator.aggregate(prepared, len(prepared) - 1)
+
+                logger.info("Strategy {}: regime={} (H={:.2f}), signal={}", symbol, regime, hurst, signal.value)
 
                 if signal.value in ("BUY", "SELL"):
                     side = OrderSide.BUY if signal.value == "BUY" else OrderSide.SELL
@@ -513,7 +554,7 @@ def startup_sequence(
         if cb and ohlcv:
             cb.run_cycle(ohlcv)
 
-    scheduler.add_job("prediction_cycle", prediction_cycle, minutes=15, start_now=False)
+    scheduler.add_job("prediction_cycle", prediction_cycle, minutes=15, start_now=True)
     scheduler.add_job("continuous_backtest", continuous_backtest_cycle, hours=4, start_now=False)
 
     scheduler.start()
@@ -588,6 +629,7 @@ async def lifespan(app: FastAPI):
     prediction_strategies = {
         "mean_reversion": MeanReversionStrategy(),
         "ml_ensemble": MLEnsembleStrategy(),
+        "momentum": MomentumStrategy(),
     }
     prediction_engine = PredictionEngine(
         source=source,
@@ -597,7 +639,10 @@ async def lifespan(app: FastAPI):
         timeframe=config["data"]["timeframe"],
     )
     continuous_backtester = ContinuousBacktester(
-        strategies={"mean_reversion": MeanReversionStrategy()},
+        strategies={
+            "mean_reversion": MeanReversionStrategy(),
+            "momentum": MomentumStrategy(),
+        },
         symbols=config["symbols"][:4],
     )
     app_state["prediction_tracker"] = prediction_tracker
@@ -607,7 +652,10 @@ async def lifespan(app: FastAPI):
     # Streaming backtest manager (runs continuously via WebSocket)
     from src.api.websocket import broadcast as ws_broadcast
     streaming_manager = StreamingBacktestManager(
-        strategies={"mean_reversion": MeanReversionStrategy()},
+        strategies={
+            "mean_reversion": MeanReversionStrategy(),
+            "momentum": MomentumStrategy(),
+        },
         symbols=config["symbols"][:4],
         source=source,
         broadcast_fn=ws_broadcast,

@@ -65,8 +65,10 @@ class MLEnsembleParams(StrategyParams):
         "random_forest": 0.3,
         "lightgbm": 0.3,
     })
-    threshold_buy: float = 0.58
-    threshold_sell: float = 0.42
+    threshold_buy: float = 0.65
+    threshold_sell: float = 0.35
+    min_confidence: float = 0.70   # minimum |prob - 0.5| * 2 to trade
+    max_trades_per_day: int = 1    # max entries per 24h window
     train_window: int = 1500      # bars for training (shorter = adapt faster)
     retrain_interval: int = 250   # retrain every N bars
     n_estimators: int = 150
@@ -94,6 +96,8 @@ class MLEnsembleStrategy(BaseStrategy):
         self._last_train_bar = -1
         self._last_features: list[str] = []
         self._last_probability: float | None = None
+        self._daily_trades: int = 0
+        self._last_trade_bar: int = -9999
 
     def get_params(self) -> StrategyParams:
         return self.params
@@ -267,9 +271,20 @@ class MLEnsembleStrategy(BaseStrategy):
         if prob is None:
             return Signal.HOLD
 
+        # Confidence filter: require strong conviction
+        confidence = abs(prob - 0.5) * 2  # 0-1 scale
+        if confidence < p.min_confidence:
+            return Signal.HOLD
+
+        # Daily trade limit (24 bars = 24h at 1h timeframe)
+        if index - self._last_trade_bar < 24:
+            return Signal.HOLD
+
         if prob > p.threshold_buy:
+            self._last_trade_bar = index
             return Signal.BUY
         if prob < p.threshold_sell:
+            self._last_trade_bar = index
             return Signal.SELL
         return Signal.HOLD
 
@@ -296,6 +311,8 @@ class MLEnsembleStrategy(BaseStrategy):
         self._is_trained = False
         self._last_train_bar = -1
         self._last_features = []
+        self._daily_trades = 0
+        self._last_trade_bar = -9999
 
     def feature_importance(self) -> dict[str, pd.Series]:
         """Get feature importances from trained models.
