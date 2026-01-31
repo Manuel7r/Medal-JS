@@ -383,20 +383,28 @@ def get_streaming_results():
     return manager.get_all_results()
 
 
+def _safe_float(v: float) -> float:
+    """Replace NaN/Inf with 0.0 for JSON serialization."""
+    import math
+    if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+        return 0.0
+    return v
+
+
 def _metrics_to_dict(metrics) -> dict:
     return {
-        "total_return": metrics.total_return,
-        "annualized_return": metrics.annualized_return,
-        "sharpe_ratio": metrics.sharpe_ratio,
-        "sortino_ratio": metrics.sortino_ratio,
-        "calmar_ratio": metrics.calmar_ratio,
-        "max_drawdown": metrics.max_drawdown,
+        "total_return": _safe_float(metrics.total_return),
+        "annualized_return": _safe_float(metrics.annualized_return),
+        "sharpe_ratio": _safe_float(metrics.sharpe_ratio),
+        "sortino_ratio": _safe_float(metrics.sortino_ratio),
+        "calmar_ratio": _safe_float(metrics.calmar_ratio),
+        "max_drawdown": _safe_float(metrics.max_drawdown),
         "max_drawdown_duration": metrics.max_drawdown_duration,
-        "win_rate": metrics.win_rate,
-        "profit_factor": metrics.profit_factor,
+        "win_rate": _safe_float(metrics.win_rate),
+        "profit_factor": _safe_float(metrics.profit_factor),
         "total_trades": metrics.total_trades,
-        "avg_trade_return": metrics.avg_trade_return,
-        "avg_win": metrics.avg_win,
-        "avg_loss": metrics.avg_loss,
-        "expectancy": metrics.expectancy,
+        "avg_trade_return": _safe_float(metrics.avg_trade_return),
+        "avg_win": _safe_float(metrics.avg_win),
+        "avg_loss": _safe_float(metrics.avg_loss),
+        "expectancy": _safe_float(metrics.expectancy),
     }
