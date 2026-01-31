@@ -40,6 +40,7 @@ class PredictionEngine:
         self._timeframe = timeframe
         self._last_cycle: datetime | None = None
         self._cycle_count = 0
+        self._data_cache: dict[str, pd.DataFrame] = {}  # cached OHLCV per symbol
 
     def run_cycle(self) -> dict:
         """Main prediction cycle.
@@ -55,16 +56,33 @@ class PredictionEngine:
         """
         self._cycle_count += 1
         self._last_cycle = datetime.now(timezone.utc)
-        since = datetime.now(timezone.utc) - timedelta(days=30)
+        since = datetime.now(timezone.utc) - timedelta(days=90)
 
         all_predictions: list[dict] = []
         all_resolved: list[dict] = []
 
         for symbol in self._symbols:
             try:
-                df = self._source.fetch_ohlcv(
-                    symbol, timeframe=self._timeframe, since=since, limit=500,
-                )
+                # Use cache: fetch full history first time, then incremental
+                if symbol in self._data_cache and len(self._data_cache[symbol]) > 500:
+                    recent_since = datetime.now(timezone.utc) - timedelta(hours=2)
+                    new_bars = self._source.fetch_ohlcv(
+                        symbol, timeframe=self._timeframe, since=recent_since, limit=10,
+                    )
+                    if new_bars is not None and len(new_bars) > 0:
+                        cached = self._data_cache[symbol]
+                        combined = pd.concat([cached, new_bars]).drop_duplicates(
+                            subset=["timestamp"], keep="last"
+                        ).tail(2500)
+                        self._data_cache[symbol] = combined.reset_index(drop=True)
+                    df = self._data_cache[symbol]
+                else:
+                    df = self._source.fetch_ohlcv(
+                        symbol, timeframe=self._timeframe, since=since, limit=2000,
+                    )
+                    if df is not None:
+                        self._data_cache[symbol] = df
+
                 if df is None or len(df) < 120:
                     logger.warning("Prediction: {} has too few bars ({})", symbol, len(df) if df is not None else 0)
                     continue

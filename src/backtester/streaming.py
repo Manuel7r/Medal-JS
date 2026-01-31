@@ -64,6 +64,8 @@ class StreamingBacktestRunner:
         strategy: str,
         stop_loss_pct: float | None = None,
         take_profit_pct: float | None = None,
+        atr_stop_multiplier: float | None = None,
+        atr_tp_multiplier: float | None = None,
     ) -> dict:
         """Run backtest bar-by-bar with async progress broadcasting.
 
@@ -71,6 +73,7 @@ class StreamingBacktestRunner:
         """
         data = data.reset_index(drop=True).copy()
         n = len(data)
+        has_atr = "atr_14" in data.columns and atr_stop_multiplier is not None
 
         self.state = StreamingState(
             strategy=strategy,
@@ -93,6 +96,15 @@ class StreamingBacktestRunner:
             low = float(bar["low"])
             timestamp = bar["timestamp"]
 
+            # Dynamic ATR-based stops
+            if has_atr:
+                atr_val = float(bar["atr_14"]) if not pd.isna(bar["atr_14"]) else 0
+                sl_pct = (atr_stop_multiplier * atr_val / close) if close > 0 and atr_val > 0 else stop_loss_pct
+                tp_pct = (atr_tp_multiplier * atr_val / close) if close > 0 and atr_val > 0 and atr_tp_multiplier else take_profit_pct
+            else:
+                sl_pct = stop_loss_pct
+                tp_pct = take_profit_pct
+
             # Check stops
             if position is not None:
                 closed = self._engine._check_stops(position, high, low, close, timestamp, cash, trades)
@@ -108,7 +120,7 @@ class StreamingBacktestRunner:
                 side = Side.LONG if signal == SignalType.BUY else Side.SHORT
                 position, cost = self._engine._open_position(
                     symbol, side, close, timestamp, cash,
-                    stop_loss_pct, take_profit_pct,
+                    sl_pct, tp_pct,
                 )
                 cash -= cost
             elif position is not None and signal == SignalType.EXIT:
@@ -123,7 +135,7 @@ class StreamingBacktestRunner:
                 side = Side.LONG if signal == SignalType.BUY else Side.SHORT
                 position, cost = self._engine._open_position(
                     symbol, side, close, timestamp, cash,
-                    stop_loss_pct, take_profit_pct,
+                    sl_pct, tp_pct,
                 )
                 cash -= cost
 

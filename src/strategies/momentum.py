@@ -213,22 +213,14 @@ def backtest_momentum(
         position_size_pct=position_size_pct,
     )
 
-    if "atr_14" in prepared.columns:
-        median_atr = prepared["atr_14"].dropna().median()
-        median_close = prepared["close"].dropna().median()
-        atr_pct = median_atr / median_close if median_close > 0 else 0.02
-        stop_loss = 2.5 * atr_pct
-        take_profit = 4.0 * atr_pct
-    else:
-        stop_loss = 0.05
-        take_profit = 0.08
-
     result = engine.run(
         data=prepared,
         signal_fn=strategy.generate_engine_signal,
         symbol="MOM",
-        stop_loss_pct=stop_loss,
-        take_profit_pct=take_profit,
+        atr_stop_multiplier=2.5,
+        atr_tp_multiplier=4.0,
+        stop_loss_pct=0.05,
+        take_profit_pct=0.08,
     )
 
     logger.info(

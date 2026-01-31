@@ -23,7 +23,7 @@ class AggregatorParams(StrategyParams):
         "mean_reversion": 0.35,
         "ml_ensemble": 0.25,
     })
-    majority_threshold: float = 0.35  # fraction of total weight needed (allows single dominant strategy)
+    majority_threshold: float = 0.50  # fraction of total weight needed for consensus
 
 
 class SignalAggregator:
@@ -57,6 +57,16 @@ class SignalAggregator:
         """
         self._strategies[name] = strategy
         self._weights[name] = weight if weight is not None else self.params.weights.get(name, 1.0)
+
+    def update_weights(self, weights: dict[str, float]) -> None:
+        """Update voting weights for registered strategies.
+
+        Args:
+            weights: Dict mapping strategy name -> new weight.
+        """
+        for name, weight in weights.items():
+            if name in self._strategies:
+                self._weights[name] = weight
 
     def aggregate(self, data: pd.DataFrame, index: int) -> Signal:
         """Collect signals from all strategies and vote.

@@ -98,6 +98,8 @@ class StreamingBacktestManager:
                                 signal_fn=strategy.generate_engine_signal,
                                 symbol=symbol,
                                 strategy=strategy_name,
+                                atr_stop_multiplier=2.5,
+                                atr_tp_multiplier=4.0,
                             )
 
                             cycle_results.append({

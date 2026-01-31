@@ -65,9 +65,9 @@ class MLEnsembleParams(StrategyParams):
         "random_forest": 0.3,
         "lightgbm": 0.3,
     })
-    threshold_buy: float = 0.65
-    threshold_sell: float = 0.35
-    min_confidence: float = 0.70   # minimum |prob - 0.5| * 2 to trade
+    threshold_buy: float = 0.60
+    threshold_sell: float = 0.40
+    min_confidence: float = 0.55   # minimum |prob - 0.5| * 2 to trade
     max_trades_per_day: int = 1    # max entries per 24h window
     train_window: int = 1500      # bars for training (shorter = adapt faster)
     retrain_interval: int = 250   # retrain every N bars
@@ -370,23 +370,14 @@ def backtest_ml_ensemble(
         position_size_pct=position_size_pct,
     )
 
-    # ATR-based stops
-    if "atr_14" in prepared.columns:
-        median_atr = prepared["atr_14"].dropna().median()
-        median_close = prepared["close"].dropna().median()
-        atr_pct = median_atr / median_close if median_close > 0 else 0.02
-        stop_loss = 2.5 * atr_pct
-        take_profit = 4.0 * atr_pct
-    else:
-        stop_loss = 0.05
-        take_profit = 0.08
-
     result = engine.run(
         data=prepared,
         signal_fn=strategy.generate_engine_signal,
         symbol="ML",
-        stop_loss_pct=stop_loss,
-        take_profit_pct=take_profit,
+        atr_stop_multiplier=2.5,
+        atr_tp_multiplier=4.0,
+        stop_loss_pct=0.05,
+        take_profit_pct=0.08,
     )
 
     logger.info(
