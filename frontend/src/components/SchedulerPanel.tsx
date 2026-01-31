@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import type { SchedulerData } from '../types';
 
 interface Props {
@@ -13,8 +14,30 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(mins / 60)}h ${mins % 60}m ago`;
 }
 
+function formatCountdown(iso: string | null): string {
+  if (!iso) return '—';
+  const diff = new Date(iso).getTime() - Date.now();
+  if (diff <= 0) return 'Now';
+  const secs = Math.floor(diff / 1000);
+  const mins = Math.floor(secs / 60);
+  const remSecs = secs % 60;
+  if (mins >= 60) {
+    const hrs = Math.floor(mins / 60);
+    const remMins = mins % 60;
+    return `${hrs}h ${remMins}m ${remSecs}s`;
+  }
+  return `${mins}m ${remSecs.toString().padStart(2, '0')}s`;
+}
+
 export default function SchedulerPanel({ scheduler }: Props) {
   const jobs = Object.values(scheduler.jobs);
+  const [, setTick] = useState(0);
+
+  // Force re-render every second for countdown
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
@@ -29,20 +52,28 @@ export default function SchedulerPanel({ scheduler }: Props) {
         <p className="text-slate-500 text-sm">No jobs registered</p>
       ) : (
         <div className="space-y-3">
-          {jobs.map(j => (
-            <div key={j.name} className="flex items-center justify-between py-2 border-b border-slate-700/50 last:border-0">
-              <div>
-                <p className="text-sm font-medium">{j.name}</p>
-                <p className="text-xs text-slate-500">{timeAgo(j.last_run)}</p>
+          {jobs.map(j => {
+            const nextRun = (j as any).next_run as string | null;
+            return (
+              <div key={j.name} className="flex items-center justify-between py-2 border-b border-slate-700/50 last:border-0">
+                <div>
+                  <p className="text-sm font-medium">{j.name}</p>
+                  <p className="text-xs text-slate-500">{timeAgo(j.last_run)}</p>
+                </div>
+                <div className="flex items-center gap-4 text-xs">
+                  {nextRun && (
+                    <span className="text-emerald-400 font-mono bg-emerald-500/10 px-2 py-0.5 rounded">
+                      {formatCountdown(nextRun)}
+                    </span>
+                  )}
+                  <span className="text-slate-400">{j.run_count} runs</span>
+                  {j.error_count > 0 && (
+                    <span className="text-red-400">{j.error_count} errors</span>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-4 text-xs text-slate-400">
-                <span>{j.run_count} runs</span>
-                {j.error_count > 0 && (
-                  <span className="text-red-400">{j.error_count} errors</span>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

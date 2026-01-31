@@ -611,7 +611,7 @@ async def lifespan(app: FastAPI):
         symbols=config["symbols"][:4],
         source=source,
         broadcast_fn=ws_broadcast,
-        cycle_delay_minutes=30,
+        cycle_delay_minutes=5,
         initial_capital=10_000.0,
     )
     app_state["streaming_manager"] = streaming_manager

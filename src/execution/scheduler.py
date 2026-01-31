@@ -167,8 +167,22 @@ class TradingScheduler:
         Returns:
             Dict with scheduler state and per-job status.
         """
+        jobs_status: dict = {}
+        for name, job in self._jobs.items():
+            s = job.status()
+            # Add next_run_time from APScheduler
+            try:
+                ap_job = self._scheduler.get_job(name)
+                if ap_job and ap_job.next_run_time:
+                    s["next_run"] = ap_job.next_run_time.isoformat()
+                else:
+                    s["next_run"] = None
+            except Exception:
+                s["next_run"] = None
+            jobs_status[name] = s
+
         return {
             "running": self._running,
             "total_jobs": len(self._jobs),
-            "jobs": {name: job.status() for name, job in self._jobs.items()},
+            "jobs": jobs_status,
         }

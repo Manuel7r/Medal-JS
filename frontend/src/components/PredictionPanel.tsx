@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from 'react';
 import type { PredictionRecord } from '../types';
 import { usePredictions } from '../api';
 
@@ -21,17 +22,64 @@ function confidenceBar(confidence: number) {
   );
 }
 
+function formatCountdown(iso: string | null): string {
+  if (!iso) return '';
+  const diff = new Date(iso).getTime() - Date.now();
+  if (diff <= 0) return 'Running now...';
+  const secs = Math.floor(diff / 1000);
+  const mins = Math.floor(secs / 60);
+  const remSecs = secs % 60;
+  return `${mins}m ${remSecs.toString().padStart(2, '0')}s`;
+}
+
+function useNextPredictionRun() {
+  const [nextRun, setNextRun] = useState<string | null>(null);
+  const [, setTick] = useState(0);
+
+  const poll = useCallback(async () => {
+    try {
+      const res = await fetch('/api/dashboard');
+      if (!res.ok) return;
+      const data = await res.json();
+      const job = data?.scheduler?.jobs?.prediction_cycle;
+      setNextRun(job?.next_run ?? null);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    poll();
+    const id = setInterval(poll, 5000);
+    return () => clearInterval(id);
+  }, [poll]);
+
+  // Tick every second for countdown
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  return nextRun;
+}
+
 export default function PredictionPanel() {
   const predictions = usePredictions();
+  const nextRun = useNextPredictionRun();
   const symbols = Object.keys(predictions);
 
   if (symbols.length === 0) {
     return (
       <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-        <h2 className="text-lg font-semibold mb-2">Live Predictions</h2>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-lg font-semibold">Live Predictions</h2>
+          {nextRun && (
+            <span className="text-emerald-400 font-mono text-xs bg-emerald-500/10 px-2 py-1 rounded">
+              Next cycle: {formatCountdown(nextRun)}
+            </span>
+          )}
+        </div>
         <p className="text-sm text-slate-500">Waiting for first prediction cycle (every 15 min)...</p>
         <div className="flex items-center gap-2 mt-3">
-          <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+          <div className="w-3 h-3 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
           <span className="text-xs text-slate-400">Prediction engine initializing</span>
         </div>
       </div>
@@ -40,7 +88,14 @@ export default function PredictionPanel() {
 
   return (
     <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-      <h2 className="text-lg font-semibold mb-4">Live Predictions</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold">Live Predictions</h2>
+        {nextRun && (
+          <span className="text-emerald-400 font-mono text-xs bg-emerald-500/10 px-2 py-1 rounded">
+            Next cycle: {formatCountdown(nextRun)}
+          </span>
+        )}
+      </div>
       <div className="space-y-4">
         {symbols.map(symbol => (
           <div key={symbol}>
